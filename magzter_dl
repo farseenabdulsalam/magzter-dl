@@ -1,0 +1,70 @@
+#! /usr/bin/env python
+import sys
+import re
+import subprocess
+import requests
+import glob 
+
+
+user_given_url = sys.argv[1]
+
+reader_html = str(requests.get(user_given_url).content)
+
+regex_pattern_1 = '<meta property="og:url" content="https://www.magzter.com/share/mag/([0-9]+)'
+regex_pattern_2 = '<meta property="og:image" content="https://cdn.magzter.com/[0-9]+/([0-9]+)/'
+data_num_1 = int(re.findall(regex_pattern_1,reader_html)[0])
+data_num_2 = int(re.findall(regex_pattern_2,reader_html)[0])
+
+mag_data_url = 'data/{}/{}/'.format(data_num_1,data_num_2)
+
+main_url='https://www.magzter.com/get_json/getImagestest'
+
+data={'page_type':'reader',
+      'frmPage':'1',
+      'file_path':mag_data_url
+     }
+
+r = requests.post(main_url,data=data)
+
+no_of_pages = int(r.json()['total_pages'])
+magazine_name = r.json()['magazine_name']
+issue_name = r.json()['issue_name']
+subprocess.call(['mkdir',
+                '-p',
+                '{}/{}'.format(magazine_name, issue_name)])
+print("Downloading {} - {}".format(magazine_name,
+                                   issue_name))
+
+print("Total pages: {}".format(no_of_pages))
+
+# TODO: Process forking
+# max_workers = 4
+# process_pool = []
+
+for i in range(1,no_of_pages+1):
+    data['frmPage']=str(i)
+    r = requests.post(main_url,data=data)
+    img_url=r.json()['pagesAbsPath'][str(i)]
+    print("Downloading {} of {} ...".format(i,no_of_pages),
+          end='\r',flush=True)
+    subprocess.call(['axel',
+                     '-q',
+                     img_url,
+                     '-o','{}/{}/{}.jpg'.format(magazine_name,
+                                                issue_name,
+                                                "{0:0{width}}".format(i,width=5)
+                                               )
+                    ])
+print("Download complete.")
+
+
+print("Converting to CBZ ..",end='\r',flush=True)
+subprocess.call(['zip','--quiet',
+                 '{}/{}.cbz'.format(magazine_name,issue_name)] +\
+                glob.glob('{}/{}/*.jpg'.format(magazine_name,issue_name))
+                )
+
+print("Converted to CBZ.")
+print("Removing temporary files ..",end='\r',flush=True)
+subprocess.call(['rm','-rf','{}/{}'.format(magazine_name,issue_name)])
+print("Removed temporary files.")

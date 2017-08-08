@@ -1,0 +1,16 @@
+#! /usr/bin/env python
+import requests
+import re
+import sys
+
+url_regex_pattern = '<div class="cover-wrap"><a href="(https://www.magzter.com/[A-Z]+/[^/]+/[^/]+/[A-Za-z]+/[0-9]+)" onclick="ga'
+user_given_url = sys.argv[1]
+
+suffixes = ['','24','36']
+
+for s in suffixes:
+    html = str(requests.get(user_given_url+"/"+s,
+                        headers={'X-Requested-With': 'XMLHttpRequest'}).content)
+    urls = re.findall(url_regex_pattern,html)
+    for u in urls:
+        print(u)
